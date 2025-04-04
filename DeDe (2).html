@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>DeDe - Réseau Social</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: linear-gradient(to bottom right, #a2d4f6, #d0ecff);
+      padding: 20px;
+    }
+    .hidden { display: none; }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    input, textarea, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button { background: #3399ff; color: white; border: none; cursor: pointer; }
+    #image-preview { display: none; max-width: 100%; margin-top: 10px; }
+
+    .chat-box {
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      padding: 10px;
+      height: 200px;
+      overflow-y: auto;
+      background: #f9f9f9;
+    }
+    .chat-container {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card" id="signup">
+    <h2>Inscription</h2>
+    <input type="text" id="username" placeholder="Nom d'utilisateur">
+    <input type="email" id="email" placeholder="Email">
+    <button onclick="register()">S'inscrire</button>
+    <button onclick="goToPosts()">Déjà inscrit</button>
+  </div>
+
+  <div class="card hidden" id="post-section">
+    <h2>Publier</h2>
+    <textarea id="post-content" placeholder="Quoi de neuf ?"></textarea>
+    <input type="file" id="image-upload" accept="image/*" capture="environment" onchange="previewImage(event)">
+    <img id="image-preview">
+    <button onclick="publish()">Publier</button>
+  </div>
+
+  <div id="feed"></div>
+
+  <div class="card hidden" id="chat-section">
+    <h2>Discussion</h2>
+    <div class="chat-box" id="chat-box"></div>
+    <input type="text" id="chat-message" placeholder="Tape ton message...">
+    <button onclick="sendMessage()">Envoyer</button>
+    <button onclick="backToFeed()">Retour</button>
+  </div>
+
+  <script>
+    let currentUser = "";
+    let currentChat = "";
+
+    function register() {
+      const username = document.getElementById('username').value.trim();
+      const email = document.getElementById('email').value.trim();
+      if (username && email) {
+        if (localStorage.getItem(username)) {
+          alert("Utilisateur déjà inscrit.");
+        } else {
+          localStorage.setItem(username, email);
+          currentUser = username;
+          showPostSection();
+        }
+      }
+    }
+
+    function goToPosts() {
+      const username = prompt("Nom d'utilisateur ?");
+      if (localStorage.getItem(username)) {
+        currentUser = username;
+        showPostSection();
+      } else {
+        alert("Utilisateur introuvable.");
+      }
+    }
+
+    function showPostSection() {
+      document.getElementById('signup').classList.add('hidden');
+      document.getElementById('post-section').classList.remove('hidden');
+    }
+
+    function previewImage(event) {
+      const reader = new FileReader();
+      reader.onload = function () {
+        const img = document.getElementById('image-preview');
+        img.src = reader.result;
+        img.style.display = 'block';
+      };
+      reader.readAsDataURL(event.target.files[0]);
+    }
+
+    function publish() {
+      const content = document.getElementById('post-content').value;
+      const imageSrc = document.getElementById('image-preview').src;
+      const feed = document.getElementById('feed');
+      const post = document.createElement('div');
+      post.className = 'card';
+      const postId = 'post-' + Date.now(); // ID unique
+
+      let html = `<strong>${currentUser}</strong><p>${content}</p>`;
+      if (imageSrc && imageSrc !== window.location.href) {
+        html += `<img src="${imageSrc}" style="max-width:100%;margin-top:10px;" />`;
+      }
+      html += `<button onclick="openChat('${currentUser}')">Discuter</button>
+               <button onclick="toggleLike('${postId}')" id="${postId}" data-liked="false">✊️ <span id="${postId}-count">0</span></button>`;
+      post.innerHTML = html;
+      post.setAttribute('data-id', postId);
+      feed.prepend(post);
+      document.getElementById('post-content').value = '';
+      document.getElementById('image-preview').style.display = 'none';
+      document.getElementById('image-upload').value = '';
+    }
+
+    function toggleLike(postId) {
+      const button = document.getElementById(postId);
+      const countSpan = document.getElementById(postId + '-count');
+      const likedPosts = JSON.parse(localStorage.getItem('likedPosts') || '{}');
+
+      if (likedPosts[currentUser]?.includes(postId)) {
+        likedPosts[currentUser] = likedPosts[currentUser].filter(id => id !== postId);
+        countSpan.textContent = parseInt(countSpan.textContent) - 1;
+        button.setAttribute('data-liked', 'false');
+      } else {
+        if (!likedPosts[currentUser]) likedPosts[currentUser] = [];
+        likedPosts[currentUser].push(postId);
+        countSpan.textContent = parseInt(countSpan.textContent) + 1;
+        button.setAttribute('data-liked', 'true');
+      }
+
+      localStorage.setItem('likedPosts', JSON.stringify(likedPosts));
+    }
+
+    function openChat(user) {
+      currentChat = user;
+      document.getElementById('post-section').classList.add('hidden');
+      document.getElementById('feed').classList.add('hidden');
+      document.getElementById('chat-section').classList.remove('hidden');
+    }
+
+    function backToFeed() {
+      document.getElementById('chat-section').classList.add('hidden');
+      document.getElementById('post-section').classList.remove('hidden');
+      document.getElementById('feed').classList.remove('hidden');
+    }
+
+    function sendMessage() {
+      const chatBox = document.getElementById('chat-box');
+      const message = document.getElementById('chat-message').value;
+      if (message) {
+        const p = document.createElement('p');
+        p.textContent = `${currentUser}: ${message}`;
+        chatBox.appendChild(p);
+        document.getElementById('chat-message').value = '';
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+    }
+  </script>
+
+</body></html>
